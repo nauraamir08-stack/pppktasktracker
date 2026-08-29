@@ -21,7 +21,7 @@ function readStore(key) {
 let completed = readStore(STORAGE.completed);
 let favorites = readStore(STORAGE.favorites);
 const page = document.body?.dataset.page || 'home';
-const navLinks = Object.freeze({ home: 'index.html', calendar: 'kalender.html', tasks: 'tugas.html', favorites: 'favorit.html' });
+const navLinks = Object.freeze({ home: '/', calendar: '/kalender/', tasks: '/tugas/', favorites: '/favorit/' });
 
 function save() {
   localStorage.setItem(STORAGE.completed, JSON.stringify(completed));
@@ -291,7 +291,7 @@ function taskCard(task) {
 }
 
 function emptyState(title, text) {
-  return `<div class="empty-state"><div class="empty-icon">☆</div><h3>${title}</h3><p>${text}</p><a class="primary-link" href="tugas.html">Lihat semua tugas</a></div>`;
+  return `<div class="empty-state"><div class="empty-icon">☆</div><h3>${title}</h3><p>${text}</p><a class="primary-link" href="/tugas/">Lihat semua tugas</a></div>`;
 }
 
 function currentTaskCategory() {
