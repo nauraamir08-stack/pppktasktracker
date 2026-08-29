@@ -7,6 +7,7 @@ const STORAGE = Object.freeze({
   completed: 'pppk_completed',
   favorites: 'pppk_favorites',
   dark: 'pppk_dark',
+  nickname: 'pppk_nickname',
 });
 
 function readStore(key) {
@@ -21,7 +22,7 @@ function readStore(key) {
 let completed = readStore(STORAGE.completed);
 let favorites = readStore(STORAGE.favorites);
 const page = document.body?.dataset.page || 'home';
-const navLinks = Object.freeze({ home: '/', calendar: '/kalender/', tasks: '/tugas/', favorites: '/favorit/' });
+const navLinks = Object.freeze({ home: 'index.html', calendar: 'kalender.html', tasks: 'tugas.html', favorites: 'favorit.html' });
 
 function save() {
   localStorage.setItem(STORAGE.completed, JSON.stringify(completed));
@@ -110,6 +111,94 @@ function showOfficialNotice() {
   officialNoticeTimer = window.setTimeout(() => closeNotice(), 10250);
 }
 
+function getNickname() {
+  try { return (localStorage.getItem(STORAGE.nickname) || '').trim(); } catch (_) { return ''; }
+}
+
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour >= 4 && hour < 11) return 'Selamat pagi';
+  if (hour >= 11 && hour < 15) return 'Selamat siang';
+  if (hour >= 15 && hour < 18) return 'Selamat sore';
+  return 'Selamat malam';
+}
+
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+}
+
+function getPendingItemsForWelcome() {
+  return allItems()
+    .filter(item => !completed[item.id])
+    .map(item => ({ ...item, _time: parseDate(item.deadline) }))
+    .sort((a, b) => {
+      if (a._time === null && b._time === null) return 0;
+      if (a._time === null) return 1;
+      if (b._time === null) return -1;
+      return a._time - b._time;
+    });
+}
+
+function renderWelcome() {
+  const card = document.getElementById('welcomeCard');
+  if (!card) return;
+  const name = getNickname();
+  if (!name) {
+    card.classList.add('hidden');
+    card.innerHTML = '';
+    return;
+  }
+  const pending = getPendingItemsForWelcome();
+  const count = pending.length;
+  const visible = pending.slice(0, 4);
+  const itemsHTML = visible.map(item => `<li><span>•</span><strong>${escapeHTML(item.title)}</strong>${item.deadline ? `<small>${escapeHTML(item.deadlineText || deadlineText(item.deadline))}</small>` : ''}</li>`).join('');
+  card.classList.remove('hidden');
+  card.innerHTML = `<div class="welcome-copy"><div class="welcome-greeting">${getGreeting()}, <strong>${escapeHTML(name)}</strong> 👋</div><p>${count ? `Jangan lupa tugasnya, masih ada <strong>${count} tugas yang belum selesai.</strong>` : '<strong>Hebat!</strong> Semua tugas sudah selesai 🎉'}</p></div>${count ? `<div class="welcome-tasks"><div class="welcome-tasks-title">🔔 Tugas yang perlu dikerjakan</div><ul>${itemsHTML}</ul>${count > visible.length ? `<a href="tugas.html" class="welcome-more">Lihat ${count - visible.length} tugas lainnya →</a>` : ''}</div>` : ''}`;
+}
+
+function openNameSettings() {
+  const modal = document.getElementById('nameModal');
+  const input = document.getElementById('nicknameInput');
+  const title = document.getElementById('nameTitle');
+  const intro = document.getElementById('nameIntro');
+  const saveButton = document.getElementById('saveNicknameButton');
+  if (!modal || !input) return;
+  const existing = getNickname();
+  title.textContent = existing ? 'Ubah nama panggilan' : 'Selamat datang!';
+  intro.textContent = existing ? 'Ganti nama panggilan yang tampil di dashboard.' : 'Sebelum mulai, boleh tahu nama panggilan kamu?';
+  saveButton.textContent = existing ? 'Simpan →' : 'Mulai →';
+  input.value = existing;
+  modal.classList.add('show');
+  modal.setAttribute('aria-hidden', 'false');
+  window.setTimeout(() => input.focus(), 80);
+}
+
+function closeNameSettings() {
+  const modal = document.getElementById('nameModal');
+  if (!modal) return;
+  if (!getNickname()) return;
+  modal.classList.remove('show');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+function saveNickname() {
+  const input = document.getElementById('nicknameInput');
+  if (!input) return;
+  const name = input.value.trim().replace(/\s+/g, ' ');
+  if (!name) { input.focus(); input.classList.add('invalid'); return; }
+  input.classList.remove('invalid');
+  localStorage.setItem(STORAGE.nickname, name.slice(0, 30));
+  const modal = document.getElementById('nameModal');
+  if (modal) { modal.classList.remove('show'); modal.setAttribute('aria-hidden', 'true'); }
+  renderWelcome();
+}
+
+function initNickname() {
+  if (page !== 'home') return;
+  renderWelcome();
+  if (!getNickname()) window.setTimeout(openNameSettings, 450);
+}
+
 function toggleDarkMode() {
   document.body.classList.toggle('dark');
   localStorage.setItem(STORAGE.dark, document.body.classList.contains('dark') ? 'true' : 'false');
@@ -186,6 +275,7 @@ function updateGlobalStats() {
   if (kpiProgress) kpiProgress.textContent = `${progress}%`;
   if (kpiText) kpiText.textContent = `${done} dari ${total} checklist selesai`;
   if (kpiFavorites) kpiFavorites.textContent = String(favoriteCount);
+  renderWelcome();
 }
 
 function updateKpis() {
@@ -225,6 +315,7 @@ function toggleTask(id) {
   save();
   updateGlobalStats();
   updateKpis();
+  renderWelcome();
   renderTaskPages();
   updateCountdowns();
   if (completed[id]) celebrate(document.querySelector(`#card-${CSS.escape(id)} .main-check`));
@@ -291,7 +382,7 @@ function taskCard(task) {
 }
 
 function emptyState(title, text) {
-  return `<div class="empty-state"><div class="empty-icon">☆</div><h3>${title}</h3><p>${text}</p><a class="primary-link" href="/tugas/">Lihat semua tugas</a></div>`;
+  return `<div class="empty-state"><div class="empty-icon">☆</div><h3>${title}</h3><p>${text}</p><a class="primary-link" href="tugas.html">Lihat semua tugas</a></div>`;
 }
 
 function currentTaskCategory() {
@@ -546,6 +637,7 @@ function handleTaskQuery() {
 
 function init() {
   initTheme();
+  initNickname();
   setActiveNav();
   showOfficialNotice();
   updateGlobalStats();
@@ -560,4 +652,5 @@ function init() {
   window.setInterval(updateCountdowns, 60000);
 }
 
+document.addEventListener('keydown', event => { if (event.key === 'Escape') closeNameSettings(); });
 window.addEventListener('DOMContentLoaded', init);
